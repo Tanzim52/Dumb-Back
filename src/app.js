@@ -9,6 +9,7 @@ const cartRouter = require("./routes/cartRouter");
 const categoryRoutes = require("./routes/categoryRouter");
 const orderRouter = require("./routes/orderRouter");
 const sellerRouter = require("./routes/sellerRouter");
+const wishlistRouter = require("./routes/wishlist");
 const cors = require("cors");
 const app = express();
 
@@ -55,6 +56,7 @@ app.use("/api/cart", cartRouter);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRouter);
 app.use("/api/sellers", sellerRouter);
+app.use("/api/wishlist", wishlistRouter);
 
 // Error Handler
 app.use(errorHandler);

@@ -66,7 +66,7 @@ const userSchema = new mongoose.Schema(
       },
     },
     isGoogleUser: { type: Boolean, default: false },
-    userType: { type: String, enum: ["user", "admin"], default: "user" },
+    userType: { type: String, enum: ["user", "admin", "seller"], default: "user" },
     emailVerified: { type: Boolean, default: false },
   },
   { timestamps: true }

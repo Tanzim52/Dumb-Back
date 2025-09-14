@@ -1,6 +1,6 @@
 const { validationResult } = require("express-validator");
 const mongoose = require("mongoose");
-const Order = require("../models/order");
+const Order = require("../models/Order");
 const Product = require("../models/product");
 const Cart = require("../models/cart"); // optional: to clear cart after order
 const transporter = require("../config/mailer"); // optional email notify
