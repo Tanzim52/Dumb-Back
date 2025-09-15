@@ -10,6 +10,7 @@ const categoryRoutes = require("./routes/categoryRouter");
 const orderRouter = require("./routes/orderRouter");
 const sellerRouter = require("./routes/sellerRouter");
 const wishlistRouter = require("./routes/wishlist");
+const couponRouter = require("./routes/couponRouter");
 const cors = require("cors");
 const app = express();
 
@@ -57,6 +58,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRouter);
 app.use("/api/sellers", sellerRouter);
 app.use("/api/wishlist", wishlistRouter);
+app.use("/api/coupons", couponRouter);
 
 // Error Handler
 app.use(errorHandler);
