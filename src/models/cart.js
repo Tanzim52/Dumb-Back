@@ -12,6 +12,17 @@ const cartSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
+    // allow storing selected options like size and color
+    size: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    color: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     quantity: {
       type: Number,
       required: true,

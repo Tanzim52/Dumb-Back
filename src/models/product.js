@@ -96,6 +96,9 @@ const productSchema = new mongoose.Schema(
       ref: "Seller",
       index: true,
     },
+    // Snapshot fields for seller contact and store id to avoid extra joins later
+    sellerEmail: { type: String, trim: true, lowercase: true, index: true },
+    sellerStoreId: { type: String, trim: true, lowercase: true, index: true },
   },
   { timestamps: true, strict: "throw" }
 );
@@ -152,6 +155,23 @@ productSchema.pre("save", async function (next) {
     this.slug = candidate;
   }
   next();
+});
+
+// Populate seller snapshot (email and storeId) before saving
+productSchema.pre("save", async function (next) {
+  try {
+    if (this.seller) {
+      const Seller = mongoose.models.Seller || require("./seller");
+      const s = await Seller.findById(this.seller).select("email storeId");
+      if (s) {
+        this.sellerEmail = s.email;
+        this.sellerStoreId = s.storeId || null;
+      }
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 productSchema.virtual("id").get(function () {

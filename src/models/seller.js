@@ -35,6 +35,15 @@ const documentsSchema = new mongoose.Schema(
 
 const sellerSchema = new mongoose.Schema(
   {
+    // Unique public store identifier (generated)
+    storeId: {
+      type: String,
+      unique: true,
+      index: true,
+      trim: true,
+      lowercase: true,
+    },
+
     businessName: { type: String, required: true, trim: true, index: true },
     ownerName: { type: String, required: true, trim: true },
     email: {
@@ -108,6 +117,32 @@ sellerSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 sellerSchema.set("toJSON", { virtuals: true });
+
+// Generate a unique storeId if not provided
+const crypto = require("crypto");
+function slugify(input) {
+  return (input || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+
+sellerSchema.pre("save", async function (next) {
+  if (!this.storeId) {
+    const base = slugify(this.businessName || this.ownerName || "store");
+    let candidate;
+    let tries = 0;
+    do {
+      const rand = crypto.randomBytes(3).toString("hex");
+      candidate = `${base}-${rand}`.replace(/(^-|-$)+/g, "");
+      tries += 1;
+      // safety: break after a few attempts
+      if (tries > 10) break;
+    } while (await mongoose.models.Seller.findOne({ storeId: candidate }));
+    this.storeId = candidate;
+  }
+  next();
+});
 
 const Seller = mongoose.models.Seller || mongoose.model("Seller", sellerSchema);
 module.exports = Seller;

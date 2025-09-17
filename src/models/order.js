@@ -12,6 +12,12 @@ const orderItemSchema = new mongoose.Schema(
     priceAtTime: { type: Number, required: true }, // unit price
     quantity: { type: Number, required: true, min: 1 },
     itemTotal: { type: Number, required: true }, // priceAtTime * quantity
+    // snapshot of seller for this item (useful for multi-seller orders)
+    seller: {
+      id: { type: mongoose.Schema.Types.ObjectId, ref: "Seller" },
+      email: { type: String, trim: true, lowercase: true },
+      storeId: { type: String, trim: true, lowercase: true },
+    },
   },
   { _id: false }
 );
@@ -39,6 +45,14 @@ const addressSchema = new mongoose.Schema(
 const orderSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+
+    // Snapshot user information to keep order records stable
+    userInfo: {
+      fullName: { type: String },
+      email: { type: String, trim: true, lowercase: true },
+      phone: { type: String },
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    },
 
     items: { type: [orderItemSchema], required: true },
 

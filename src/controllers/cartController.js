@@ -2,9 +2,11 @@ const Cart = require("../models/cart");
 const Product = require("../models/product");
 
 // Add product to cart
-const createCart = async (req, res) => {
+const createCart = async (req, res, next) => {
   try {
-    const { user, product, quantity } = req.body;
+    const { user, product, quantity, size, color } = req.body;
+
+    console.log(quantity);
 
     // ✅ Ensure product exists
     const productDoc = await Product.findById(product);
@@ -16,8 +18,11 @@ const createCart = async (req, res) => {
 
     const productPrice = productDoc.discount_price || productDoc.price;
 
-    // ✅ Check if item already exists in cart
-    let cartItem = await Cart.findOne({ user, product });
+    // Treat product + size + color as unique key for cart items
+    const query = { user, product, size: size || null, color: color || null };
+
+    // ✅ Check if item already exists in cart (same size/color)
+    let cartItem = await Cart.findOne(query);
     if (cartItem) {
       cartItem.quantity += quantity || 1;
       cartItem.priceAtTime = productPrice; // update latest price
@@ -25,12 +30,15 @@ const createCart = async (req, res) => {
       return res.status(200).json({ success: true, data: cartItem });
     }
 
+    // If item exists with same product but different options, keep separate entry.
     // ✅ Add new item to cart
     const newCartItem = await Cart.create({
       user,
       product,
+      size: size || null,
+      color: color || null,
       quantity: quantity || 1,
-      priceAtTime: productPrice, // auto-calculated from Product model
+      priceAtTime: productPrice,
     });
 
     res.status(201).json({ success: true, data: newCartItem });
@@ -40,7 +48,7 @@ const createCart = async (req, res) => {
 };
 
 // Get user cart
-const getCart = async (req, res) => {
+const getCart = async (req, res, next) => {
   try {
     const { userId } = req.query;
     if (!userId)
@@ -75,35 +83,66 @@ const getCart = async (req, res) => {
 };
 
 // Update quantity
-const updateCartItem = async (req, res) => {
+const updateCartItem = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { quantity } = req.body;
-    if (!quantity || quantity < 1) {
+    const { quantity, size, color } = req.body;
+
+    // Validate quantity when provided
+    if (
+      quantity !== undefined &&
+      (!Number.isInteger(quantity) || quantity < 1)
+    ) {
       return res
         .status(400)
-        .json({ success: false, message: "Quantity must be >= 1" });
+        .json({ success: false, message: "Quantity must be an integer >= 1" });
     }
 
-    const cartItem = await Cart.findByIdAndUpdate(
-      id,
-      { quantity },
-      { new: true, runValidators: true }
-    ).populate("product");
-
-    if (!cartItem)
+    const current = await Cart.findById(id);
+    if (!current)
       return res
         .status(404)
         .json({ success: false, message: "Item not found" });
 
-    res.status(200).json({ success: true, data: cartItem });
+    // If size/color changed, we may need to merge into existing item with same product+options
+    const newSize = size !== undefined ? size : current.size;
+    const newColor = color !== undefined ? color : current.color;
+
+    // Check for an existing item (excluding the one we're updating)
+    const existing = await Cart.findOne({
+      user: current.user,
+      product: current.product,
+      size: newSize || null,
+      color: newColor || null,
+      _id: { $ne: current._id },
+    });
+
+    if (existing) {
+      // Merge: increment existing quantity and remove current
+      if (quantity !== undefined) existing.quantity += quantity;
+      else existing.quantity += current.quantity;
+      // keep latest price
+      existing.priceAtTime = current.priceAtTime;
+      await existing.save();
+      await current.remove();
+      const populated = await existing.populate("product");
+      return res.status(200).json({ success: true, data: populated });
+    }
+
+    // Otherwise update in place
+    if (quantity !== undefined) current.quantity = quantity;
+    if (size !== undefined) current.size = size;
+    if (color !== undefined) current.color = color;
+    await current.save();
+    const populated = await current.populate("product");
+    res.status(200).json({ success: true, data: populated });
   } catch (error) {
     next(error);
   }
 };
 
 // Remove one item
-const deleteCartItem = async (req, res) => {
+const deleteCartItem = async (req, res, next) => {
   try {
     const { id } = req.params;
     const cartItem = await Cart.findByIdAndDelete(id);
@@ -138,7 +177,7 @@ const emptyCart = async (req, res) => {
 };
 
 // Merge guest cart into user cart
-const mergeGuestCart = async (req, res) => {
+const mergeGuestCart = async (req, res, next) => {
   try {
     const { userId, guestCart } = req.body; // guestCart = array [{product, quantity}]
     if (!userId || !Array.isArray(guestCart)) {
@@ -151,9 +190,14 @@ const mergeGuestCart = async (req, res) => {
       const productDoc = await Product.findById(item.product);
       if (!productDoc) continue;
 
+      const size = item.size || null;
+      const color = item.color || null;
+
       let cartItem = await Cart.findOne({
         user: userId,
         product: item.product,
+        size,
+        color,
       });
       if (cartItem) {
         cartItem.quantity += item.quantity;
@@ -163,6 +207,8 @@ const mergeGuestCart = async (req, res) => {
         await Cart.create({
           user: userId,
           product: item.product,
+          size,
+          color,
           quantity: item.quantity,
           priceAtTime: productDoc.discount_price || productDoc.price,
         });

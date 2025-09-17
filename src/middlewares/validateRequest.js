@@ -12,7 +12,7 @@ const validateRequest = (req, res, next) => {
       })),
     });
   }
-  next();
+  next(); // ✅ Add this line to proceed when validation passes
 };
 
 module.exports = validateRequest;

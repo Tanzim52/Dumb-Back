@@ -22,6 +22,19 @@ const cartValidation = [
     .optional()
     .isFloat({ gt: 0 })
     .withMessage("Price must be greater than 0"),
+  // optional size and color
+  body("size")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("Size must be a string up to 100 chars"),
+  body("color")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 100 })
+    .withMessage("Color must be a string up to 100 chars"),
 ];
 
 module.exports = { cartValidation };
