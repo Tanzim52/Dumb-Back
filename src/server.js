@@ -12,5 +12,5 @@ const PORT = process.env.PORT || 5000;
 
 // ALWAYS listen - Remove the condition
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(🚀 Server running on port ${PORT});
+  console.log(`🚀 Server running on port ${PORT}`);
 });
