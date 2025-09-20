@@ -20,9 +20,42 @@ const addressRules = [
   body("shippingAddress.fullName")
     .notEmpty()
     .withMessage("Receiver name required"),
-  body("shippingAddress.phone").notEmpty().withMessage("Phone is required"),
-  body("shippingAddress.city").notEmpty().withMessage("City is required"),
-  body("shippingAddress.country").notEmpty().withMessage("Country is required"),
+
+  body("shippingAddress.phone")
+    .notEmpty()
+    .withMessage("Phone is required"),
+
+  body("shippingAddress.street")
+    .notEmpty()
+    .withMessage("Street is required"),
+
+  body("shippingAddress.apartment")
+    .notEmpty()
+    .withMessage("Apartment is required"),
+
+  body("shippingAddress.area")
+    .notEmpty()
+    .withMessage("Area is required"),
+
+  body("shippingAddress.city")
+    .notEmpty()
+    .withMessage("City is required"),
+
+  body("shippingAddress.state")
+    .notEmpty()
+    .withMessage("State is required"),
+
+  body("shippingAddress.zip")
+    .notEmpty()
+    .withMessage("Zip code is required"),
+
+  body("shippingAddress.country")
+    .notEmpty()
+    .withMessage("Country is required"),
+
+  body("shippingAddress.addressType")
+    .notEmpty()
+    .withMessage("Address type is required"),
 ];
 
 const paymentRules = [
