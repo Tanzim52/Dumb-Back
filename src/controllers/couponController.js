@@ -69,7 +69,8 @@ exports.getSellerCoupons = async (req, res, next) => {
   try {
     const coupons = await Coupon.find({
       createdBy: req.user._id,
-      isDeleted: false,
+      isActive: true,
+     
     });
     res.json({ success: true, data: coupons });
   } catch (err) {
