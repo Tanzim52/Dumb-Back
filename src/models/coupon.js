@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const couponSchema = new mongoose.Schema(
   {
     code: {
@@ -47,7 +46,9 @@ const couponSchema = new mongoose.Schema(
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     // tags: [String],
-    // isDeleted: { type: Boolean, default: false },
+
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date }, 
   },
   { timestamps: true }
 );

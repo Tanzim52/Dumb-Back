@@ -1,134 +1,164 @@
-// src/controllers/couponController.js
-const Coupon = require("../models/coupon");
-const CouponUsage = require("../models/couponUsage");
-const { validateCoupon } = require("../services/couponService");
-
+const Coupon = require("../models/coupon")
+const CouponUsage = require("../models/couponUsage")
+const { validateCoupon } = require("../services/couponService")
 exports.previewCoupon = async (req, res, next) => {
   try {
-    const { couponCode, cartItems, userId } = req.body;
-    const result = await validateCoupon(couponCode, cartItems, userId);
-    return res.json({ success: true, result });
+    const { couponCode, cartItems, userId } = req.body
+    const result = await validateCoupon(couponCode, cartItems, userId)
+    return res.json({ success: true, result })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
-
+}
 exports.applyCoupon = async (req, res, next) => {
   try {
-    const { couponCode, cartItems } = req.body;
-    const userId = req.user._id;
+    const { couponCode, cartItems } = req.body
+    const userId = req.user._id
 
-    const result = await validateCoupon(couponCode, cartItems, userId);
+    const result = await validateCoupon(couponCode, cartItems, userId)
     if (!result.valid) {
-      return res.status(400).json({ success: false, message: result.reason });
+      return res.status(400).json({ success: false, message: result.reason })
     }
 
-    // Increment usage
     await Coupon.findByIdAndUpdate(result.coupon._id, {
       $inc: { usedCount: 1 },
-    });
+    })
 
     await CouponUsage.create({
       couponId: result.coupon._id,
       userId,
       cartSnapshot: cartItems,
       amountDiscounted: result.discount,
-    });
+    })
 
     return res.json({
       success: true,
       message: "Coupon applied successfully",
       data: result,
-    });
+    })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
-// Admin/Seller management
+
 exports.createCoupon = async (req, res, next) => {
   try {
-    const coupon = await Coupon.create(req.body);
-    res.status(201).json({ success: true, data: coupon });
+    const coupon = await Coupon.create(req.body)
+    res.status(201).json({ success: true, data: coupon })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
 exports.getCoupons = async (req, res, next) => {
   try {
-    const coupons = await Coupon.find({ isDeleted: false });
-    res.json({ success: true, data: coupons });
+    const coupons = await Coupon.find({ isDeleted: false })
+    res.json({ success: true, data: coupons })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
-//  Seller: only own coupons
+
 exports.getSellerCoupons = async (req, res, next) => {
   try {
     const coupons = await Coupon.find({
       createdBy: req.user._id,
       isActive: true,
-     
-    });
-    res.json({ success: true, data: coupons });
+      isDeleted: false,
+    })
+    res.json({ success: true, data: coupons })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
-//  Update coupon
 exports.updateCoupon = async (req, res, next) => {
   try {
     const coupon = await Coupon.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
-    });
-    res.json({ success: true, data: coupon });
+    })
+    res.json({ success: true, data: coupon })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
-//  Soft delete coupon
+
 exports.deleteCoupon = async (req, res, next) => {
   try {
-    await Coupon.findByIdAndUpdate(req.params.id, { isDeleted: true });
-    res.json({ success: true, message: "Coupon deleted successfully" });
-  } catch (err) {
-    next(err);
-  }
-};
+    const couponId = req.params.id
+    const userId = req.user._id
 
-//  Toggle active/inactive
+    const coupon = await Coupon.findOne({ 
+      _id: couponId, 
+      createdBy: userId 
+    })
+
+    if (!coupon) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Coupon not found or you don't have permission to delete it" 
+      })
+    }
+
+
+    if (coupon.isDeleted) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Coupon is already deleted" 
+      })
+    }
+
+
+    await Coupon.findByIdAndUpdate(couponId, { 
+      isDeleted: true,
+      deletedAt: new Date()
+    })
+
+    res.json({ 
+      success: true, 
+      message: "Coupon deleted successfully" 
+    })
+  } catch (err) {
+    console.error("Delete coupon error:", err)
+    res.status(500).json({ 
+      success: false, 
+      message: "Internal server error while deleting coupon" 
+    })
+  }
+}
+
+
 exports.toggleCoupon = async (req, res, next) => {
   try {
-    const coupon = await Coupon.findById(req.params.id);
-    coupon.isActive = !coupon.isActive;
-    await coupon.save();
-    res.json({ success: true, data: coupon });
+    const coupon = await Coupon.findById(req.params.id)
+    coupon.isActive = !coupon.isActive
+    await coupon.save()
+    res.json({ success: true, data: coupon })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
-//  Search coupons
+
 exports.searchCoupons = async (req, res, next) => {
   try {
-    const { code, status } = req.query;
-    const query = {};
-    if (code) query.code = new RegExp(code, "i");
-    if (status === "active") query.isActive = true;
-    if (status === "inactive") query.isActive = false;
+    const { code, status } = req.query
+    const query = {}
+    if (code) query.code = new RegExp(code, "i")
+    if (status === "active") query.isActive = true
+    if (status === "inactive") query.isActive = false
 
-    const coupons = await Coupon.find(query);
-    res.json({ success: true, data: coupons });
+    const coupons = await Coupon.find(query)
+    res.json({ success: true, data: coupons })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
 
-//  Reports / Analytics
+
 exports.couponReports = async (req, res, next) => {
   try {
     const stats = await CouponUsage.aggregate([
@@ -148,10 +178,10 @@ exports.couponReports = async (req, res, next) => {
         },
       },
       { $unwind: "$coupon" },
-    ]);
+    ])
 
-    res.json({ success: true, data: stats });
+    res.json({ success: true, data: stats })
   } catch (err) {
-    next(err);
+    next(err)
   }
-};
+}
