@@ -1,171 +1,74 @@
+// src/routes/sellerRouter.js
 const express = require("express");
-const router = express.Router();
-
 const ctrl = require("../controllers/sellerController");
 const validate = require("../validators/sellerValidator");
 const validateRequest = require("../middlewares/validateRequest");
-const sellerAuth = require("../middlewares/sellerAuth");
-const isAdmin = require("../middlewares/isAdmin");
-const { upload, handleMulterError } = require("../config/multerConfig");
+const { authenticateSeller } = require("../middlewares/sellerAuthMiddleware");
+const router = express.Router();
 
-// Robustly require the user-auth (admin) middleware regardless of export style
-let auth;
-try {
-  const authModule = require("../middlewares/authMiddleware");
-  if (typeof authModule === "function") {
-    auth = authModule; // module.exports = function
-  } else if (authModule && typeof authModule.protect === "function") {
-    auth = authModule.protect; // module.exports = { protect }
-  } else if (authModule && typeof authModule.auth === "function") {
-    auth = authModule.auth; // alternative naming
-  } else {
-    console.warn(
-      "[sellerRouter] authMiddleware loaded but couldn't find usable function export. " +
-      "Expected function or { protect } export."
-    );
-    auth = (req, res, next) =>
-      res.status(500).json({
-        success: false,
-        message:
-          "Server misconfiguration: auth middleware not found. Check ../middlewares/authMiddleware export.",
-      });
-  }
-} catch (err) {
-  console.warn(
-    "[sellerRouter] Warning: failed to load authMiddleware:",
-    err.message
-  );
-  auth = (req, res, next) =>
-    res.status(500).json({
-      success: false,
-      message:
-        "Server misconfiguration: auth middleware missing. Check ../middlewares/authMiddleware file.",
-    });
-}
-
-/**
- * Public routes
- */
+// Register flow
 router.post(
   "/register/start",
-  validate.registerValidation,
+  validate.registerStartValidation,
   validateRequest,
-  ctrl.registerSeller
-);
-router.post("/register/verify", validateRequest, ctrl.verifySellerEmail); // expects { email, otp }
-router.post(
-  "/login",
-  validate.loginValidation,
-  validateRequest,
-  ctrl.loginSeller
+  ctrl.registerStart
 );
 router.post(
-  "/forgot/start",
-  validate.forgotStartValidation,
+  "/register/verify-email",
+  validate.verifyEmailValidation,
   validateRequest,
-  ctrl.forgotPasswordStart
+  ctrl.verifySellerEmail
 );
 router.post(
-  "/forgot/verify",
-  validate.forgotVerifyValidation,
+  "/register/basic",
+  authenticateSeller,
+  validate.additionalInfoValidation,
   validateRequest,
-  ctrl.forgotPasswordVerify
-);
-
-/**
- * Seller-protected routes (require seller JWT - sellerAuth)
- */
-router.get("/me", sellerAuth, ctrl.getMe);
-router.patch(
-  "/update",
-  sellerAuth,
-  validate.updateValidation,
-  validateRequest,
-  ctrl.updateProfile
-);
-router.patch(
-  "/change-password",
-  sellerAuth,
-  validate.changePasswordValidation,
-  validateRequest,
-  ctrl.changePassword
-);
-
-// Change email flow (seller)
-router.post(
-  "/change-email/start",
-  sellerAuth,
-  validate.changeEmailStartValidation,
-  validateRequest,
-  ctrl.changeEmailStart
+  ctrl.registerAdditionalInfo
 );
 router.post(
-  "/change-email/verify",
-  sellerAuth,
-  validate.changeEmailVerifyValidation,
+  "/register/business",
+  authenticateSeller,
+  validate.businessValidation,
   validateRequest,
-  ctrl.changeEmailVerify
+  ctrl.registerBusiness
 );
 
-// Upload documents/logo
 router.post(
-  "/upload-doc",
-  sellerAuth,
-  upload.single("file"),
-  handleMulterError,
-  ctrl.uploadDocuments
-);
-
-/**
- * Seller product management (seller token required)
- */
-router.post("/products", sellerAuth, ctrl.createProductAsSeller);
-router.get("/products", sellerAuth, ctrl.listSellerProducts);
-router.put("/products/:id", sellerAuth, ctrl.updateProductAsSeller);
-router.delete("/products/:id", sellerAuth, ctrl.deleteProductAsSeller);
-
-/**
- * Seller orders & earnings
- */
-router.get("/orders", sellerAuth, ctrl.listSellerOrders);
-router.get("/earnings", sellerAuth, ctrl.earningsSummary);
-
-/**
- * Admin routes (require user admin token)
- * Uses the robust 'auth' loaded above (from authMiddleware) + isAdmin
- */
-router.get("/", auth, isAdmin, ctrl.listSellers);
-router.get(
-  "/:id",
-  auth,
-  isAdmin,
-  validate.idParam,
+  "/register/documents",
+  authenticateSeller,
+  validate.documentsValidation,
   validateRequest,
-  ctrl.getSeller
+  ctrl.registerDocuments
 );
-router.patch(
-  "/:id/approve",
-  auth,
-  isAdmin,
-  validate.approveValidation,
+router.post(
+  "/register/payout",
+  authenticateSeller,
+  validate.payoutValidation,
   validateRequest,
-  ctrl.changeSellerStatus
+  ctrl.registerPayout
 );
-router.patch(
-  "/:id/suspend",
-  auth,
-  isAdmin,
-  validate.approveValidation,
+router.post(
+  "/register/tax",
+  authenticateSeller,
+  validate.taxInfoValidation,
   validateRequest,
-  ctrl.changeSellerStatus
+  ctrl.registerTaxInfo
 );
-router.delete(
-  "/:id",
-  auth,
-  isAdmin,
-  validate.idParam,
+router.post(
+  "/register/return",
+  authenticateSeller,
+  validate.returnPolicyValidation,
   validateRequest,
-  ctrl.deleteSeller
+  ctrl.registerReturnPolicy
 );
+router.post(
+  "/register/plan",
+  authenticateSeller,
+  validate.planValidation,
+  validateRequest,
+  ctrl.registerPlan
+);
+router.post("/register/submit", authenticateSeller, ctrl.registerSubmit);
 
 module.exports = router;

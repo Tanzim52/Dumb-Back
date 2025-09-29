@@ -6,7 +6,7 @@ const {
   paymentUpdateRules,
 } = require("../validators/orderValidator");
 const validateRequest = require("../middlewares/validateRequest");
-const protect = require("../middlewares/authMiddleware"); // <-- destructure the middleware
+const protect = require("../middlewares/userAuthMiddleware"); // <-- destructure the middleware
 const isAdmin = require("../middlewares/isAdmin");
 const ctrl = require("../controllers/orderController");
 

@@ -1,7 +1,7 @@
 const express = require("express");
 const ctrl = require("../controllers/authController");
 const validate = require("../validators/authValidator");
-const auth = require("../middlewares/authMiddleware"); // ✅ fixed import
+const auth = require("../middlewares/userAuthMiddleware"); // ✅ fixed import
 const validateRequest = require("../middlewares/validateRequest");
 
 const router = express.Router();
