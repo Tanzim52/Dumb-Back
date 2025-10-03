@@ -1,4 +1,3 @@
-// src/models/Seller.js
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -9,280 +8,141 @@ const addressSchema = new mongoose.Schema(
     state: String,
     zip: String,
     country: String,
-    pickupPin: String,
   },
   { _id: false }
 );
 
 const bankSchema = new mongoose.Schema(
   {
-    accountHolderName: String,
+    accountHolder: String,
     accountNumber: String,
     bankName: String,
-    branch: String,
+    branchInfo: String,
     ifsc: String,
-    upiId: String,
   },
   { _id: false }
 );
 
 const documentsSchema = new mongoose.Schema(
   {
-    governmentIdUrl: String,
-    selfieUrl: String,
+    idNumber: String,
+    taxNumber: String,
     businessLicenseUrl: String,
-    taxDocumentUrl: String,
+    idCardUrl: String,
   },
   { _id: false }
 );
 
-// const sellerSchema = new mongoose.Schema(
-//   {
-//     // unique store identifier
-//     storeId: {
-//       type: String,
-//       unique: true,
-//       required: true,
-//       index: true,
-//     },
-
-//     // account
-//     email: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//       lowercase: true,
-//       trim: true,
-//     },
-//     phone: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//       trim: true,
-//     },
-//     password: { type: String, required: true },
-
-//     // business (filled in step 3)
-//     businessName: { type: String, trim: true },
-//     storeName: { type: String },
-//     businessType: {
-//       type: String,
-//       enum: [
-//         "individual",
-//         "sole_proprietorship",
-//         "company",
-//         "wholesaler",
-//         "manufacturer",
-//       ],
-//     },
-//     registrationNumber: { type: String },
-//     taxId: { type: String },
-
-//     // owner (added later in flow)
-//     fullName: { type: String, trim: true },
-
-//     // address + logistics
-//     address: { type: addressSchema, default: {} },
-//     logisticsPreference: {
-//       type: String,
-//       enum: ["byndio_partner", "self_ship"],
-//       default: "byndio_partner",
-//     },
-
-//     // KYC & docs
-//     documents: { type: documentsSchema, default: {} },
-//     kycStatus: {
-//       type: String,
-//       enum: ["pending", "verified", "rejected"],
-//       default: "pending",
-//     },
-
-//     // payout
-//     payout: { type: bankSchema, default: {} },
-//     payoutMethod: {
-//       type: String,
-//       enum: ["bank", "upi", "paypal", "other"],
-//       default: "bank",
-//     },
-
-//     // subscription & plans
-//     subscriptionPlan: {
-//       type: String,
-//       enum: ["free", "growth", "premium"],
-//       default: "free",
-//     },
-//     subscriptionStart: Date,
-//     subscriptionEnd: Date,
-
-//     // onboarding metadata
-//     acceptTerms: { type: Boolean, default: false },
-//     onboardingStep: {
-//       type: String,
-//       enum: [
-//         "started", // after email/phone/password
-//         "email_verified", // after OTP
-//         "business_added", // after business info
-//         "documents_uploaded", // after KYC docs
-//         "payout_added", // after payout info
-//         "plan_chosen", // after subscription
-//         "completed", // fully onboarded
-//       ],
-//       default: "started",
-//     },
-//     trainingCompleted: { type: Boolean, default: false },
-
-//     // admin controls
-//     status: {
-//       type: String,
-//       enum: ["pending", "approved", "rejected", "suspended"],
-//       default: "pending",
-//     },
-//     isActive: { type: Boolean, default: true },
-//     emailVerified: { type: Boolean, default: false },
-
-//     // platform fields
-//     isStoreLive: { type: Boolean, default: false },
-//     meta: { type: Object, default: {} },
-//   },
-//   { timestamps: true }
-// );
-
-// hash password
-
-
-
-// Sub-schemas
-
-
-
-const planSchema = new mongoose.Schema({
-  id: String,
-  name: String,
-  price: String,
-  features: [String],
-}, { _id: false });
-
-const sellerInfoSchema = new mongoose.Schema({
-  email: { type: String, required: true, lowercase: true, trim: true },
-  phone: { type: String, required: true, trim: true },
-  password: { type: String, required: true },
-  acceptTerms: { type: Boolean, default: false },
-}, { _id: false });
-
-const additionalInfoSchema = new mongoose.Schema({
-  fullName: String,
-  businessName: String,
-  businessType: String,
-  storeName: String,
-  country: String,
-  currency: String,
-  pickupStreet: String,
-  pickupArea: String,
-  pickupCity: String,
-  pickupState: String,
-  pinCode: String,
-}, { _id: false });
-
-const businessInfoSchema = new mongoose.Schema({
-  businessType: String,
-  businessWebsite: String,
-  primaryCategory: String,
-  registrationNumber: String,
-  taxId: String,
-  businessDescription: String,
-}, { _id: false });
-
-const identityInfoSchema = new mongoose.Schema({
-  idType: String,
-  governmentIdUrl: String,
-  selfieUrl: String,
-}, { _id: false });
-
-const payoutInfoSchema = new mongoose.Schema({
-  payoutMethod: { type: String, default: "bank" },
-  accountHolderName: String,
-  accountNumber: String,
-  bankName: String,
-  routingNumber: String,
-}, { _id: false });
-
-const taxInfoSchema = new mongoose.Schema({
-  taxFormType: String,
-  taxDocumentUrl: String,
-}, { _id: false });
-
-const returnPolicySchema = new mongoose.Schema({
-  returnPolicy: String,
-  handlingTime: String,
-  logisticsMethod: String,
-  shippingRegions: [String],
-}, { _id: false });
-
-// Main Seller schema
-const sellerSchema = new mongoose.Schema({
-  // unique store identifier
-  storeId: {type: String, unique: true, required: true, index: true,
+const sellerSchema = new mongoose.Schema(
+  {
+    // Unique public store identifier (generated)
+    storeId: {
+      type: String,
+      unique: true,
+      index: true,
+      trim: true,
+      lowercase: true,
     },
-  type: { type: String, default: "individual" },
-  plan: planSchema,
-  sellerInfo: sellerInfoSchema,
-  additionalInfo: additionalInfoSchema,
-  businessInfo: businessInfoSchema,
-  identityInfo: identityInfoSchema,
-  payoutInfo: payoutInfoSchema,
-  taxInfo: taxInfoSchema,
-  returnPolicy: returnPolicySchema,
 
-  // Onboarding & system fields
-  onboardingStep: {
-    type: String,
-    enum: [
-      "started",
-      "email_verified",
-      "business_added",
-      "documents_uploaded",
-      "payout_added",
-      "plan_chosen",
-      "completed",
-    ],
-    default: "started",
+    businessName: { type: String, required: true, trim: true, index: true },
+    ownerName: { type: String, required: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    phone: { type: String, required: true, unique: true, trim: true },
+
+    password: { type: String, required: true },
+
+    businessType: {
+      type: String,
+      enum: ["individual", "company"],
+      default: "individual",
+    },
+
+    address: { type: addressSchema, default: {} },
+
+    documents: { type: documentsSchema, default: {} },
+
+    bankDetails: { type: bankSchema, default: {} },
+
+    logoUrl: { type: String },
+
+    paymentMethod: {
+      type: String,
+      enum: ["bank_transfer", "paypal", "stripe", "other"],
+      default: "bank_transfer",
+    },
+
+    // Approval & activation
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "suspended"],
+      default: "pending",
+      index: true,
+    },
+    isActive: { type: Boolean, default: true },
+
+    // Email verification (OTP)
+    emailVerified: { type: Boolean, default: false },
+
+    meta: {
+      notes: String,
+    },
   },
-  status: {
-    type: String,
-    enum: ["pending", "approved", "rejected", "suspended"],
-    default: "pending",
-  },
-  isActive: { type: Boolean, default: true },
-  emailVerified: { type: Boolean, default: false },
-  isStoreLive: { type: Boolean, default: false },
-}, { timestamps: true });
+  { timestamps: true }
+);
 
-
-
-
+/** Hash password on save if changed */
 sellerSchema.pre("save", async function (next) {
-  if (!this.isModified("sellerInfo.password")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.sellerInfo.password = await bcrypt.hash(this.sellerInfo.password, salt);
-  return next();
+  if (!this.isModified("password")) return next();
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 });
 
+/** Instance method to compare password */
 sellerSchema.methods.matchPassword = function (plain) {
-  return bcrypt.compare(plain, this.sellerInfo.password);
+  return bcrypt.compare(plain, this.password);
 };
 
-sellerSchema.set("toJSON", { virtuals: true });
 sellerSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
+sellerSchema.set("toJSON", { virtuals: true });
 
-// Auto-generate unique storeId
-sellerSchema.pre("validate", async function (next) {
+// Generate a unique storeId if not provided
+const crypto = require("crypto");
+function slugify(input) {
+  return (input || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+}
+
+sellerSchema.pre("save", async function (next) {
   if (!this.storeId) {
-    this.storeId = `BYN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const base = slugify(this.businessName || this.ownerName || "store");
+    let candidate;
+    let tries = 0;
+    do {
+      const rand = crypto.randomBytes(3).toString("hex");
+      candidate = `${base}-${rand}`.replace(/(^-|-$)+/g, "");
+      tries += 1;
+      // safety: break after a few attempts
+      if (tries > 10) break;
+    } while (await mongoose.models.Seller.findOne({ storeId: candidate }));
+    this.storeId = candidate;
   }
   next();
 });
 
-module.exports =
-  mongoose.models.Seller || mongoose.model("Seller", sellerSchema);
+const Seller = mongoose.models.Seller || mongoose.model("Seller", sellerSchema);
+module.exports = Seller;

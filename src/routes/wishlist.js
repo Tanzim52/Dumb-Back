@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/wishlistController");
-const auth = require("../middlewares/userAuthMiddleware");
+const auth = require("../middlewares/authMiddleware");
 const v = require("../validators/wishlistValidator");
 const validateRequest = require("../middlewares/validateRequest");
 router.use(auth);

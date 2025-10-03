@@ -12,7 +12,7 @@ const {
 
 const { cartValidation } = require("../validators/cartValidator");
 const validateRequest = require("../middlewares/validateRequest");
-const protect = require("../middlewares/userAuthMiddleware");
+const protect = require("../middlewares/authMiddleware");
 
 // Protect all routes
 router.use(protect);

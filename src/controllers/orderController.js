@@ -114,11 +114,7 @@ const createOrder = async (req, res, next) => {
     // transporter.sendMail(...);
     // sendSms(req.user.phone, `Your order ${created._id} placed successfully`);
 
-  res.status(201).json({ 
-  success: true, 
-  message: "Order placed successfully!",
-  data: created 
-});
+    res.status(201).json({ success: true, data: created });
   } catch (err) {
     await session.abortTransaction().catch(() => {});
     session.endSession();

@@ -2,7 +2,7 @@ const express = require("express");
 const ctrl = require("../controllers/couponController");
 const { couponCreateValidation } = require("../validators/couponValidator");
 const validateRequest = require("../middlewares/validateRequest");
-const protect = require("../middlewares/userAuthMiddleware");
+const protect = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 

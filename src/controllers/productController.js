@@ -34,25 +34,27 @@ exports.createProduct = async (req, res, next) => {
     if (!errors.isEmpty())
       return res.status(400).json({ success: false, errors: errors.array() });
 
+    // map id -> externalId from feed
     const payload = { ...req.body };
-
     if (payload.id != null) {
       payload.externalId = payload.id;
       delete payload.id;
     }
 
+    // normalize sku
     if (payload.sku) payload.sku = String(payload.sku).toUpperCase();
 
     const doc = await Product.create(payload);
     res.status(201).json({ success: true, data: doc });
   } catch (err) {
     if (err.code === 11000 && err.keyPattern?.sku) {
-      return res.status(409).json({ success: false, message: "SKU already exists" });
+      return res
+        .status(409)
+        .json({ success: false, message: "SKU already exists" });
     }
     next(err);
   }
 };
-
 
 exports.upsertBulk = async (req, res, next) => {
   try {
