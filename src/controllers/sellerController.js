@@ -11,7 +11,7 @@ const {
   hashOtp,
 } = require("../utils/generateOtp");
 const Product = require("../models/product"); // ensure Product has seller field
-const Order = require("../models/Order"); // used for seller earnings/orders
+const Order = require("../models/order"); // used for seller earnings/orders
 
 // Helper: sign seller token (role included)
 function signSellerToken(seller) {
