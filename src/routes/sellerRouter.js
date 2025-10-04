@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-
 const ctrl = require("../controllers/sellerController");
 const validate = require("../validators/sellerValidator");
 const validateRequest = require("../middlewares/validateRequest");
@@ -46,18 +45,77 @@ try {
 /**
  * Public routes
  */
+// Register flow
 router.post(
   "/register/start",
-  validate.registerValidation,
+  validate.registerStartValidation,
   validateRequest,
-  ctrl.registerSeller
+  ctrl.registerStart
 );
-router.post("/register/verify", validateRequest, ctrl.verifySellerEmail); // expects { email, otp }
 router.post(
-  "/login",
-  validate.loginValidation,
+  "/register/verify-email",
+  validate.verifyEmailValidation,
   validateRequest,
-  ctrl.loginSeller
+  ctrl.verifySellerEmail
+);
+router.post(
+  "/register/basic",
+    sellerAuth,
+  validate.additionalInfoValidation,
+  validateRequest,
+  ctrl.registerAdditionalInfo
+);
+router.post(
+  "/register/business",
+    sellerAuth,
+  validate.businessValidation,
+  validateRequest,
+  ctrl.registerBusiness
+);
+
+router.post(
+  "/register/documents",
+  sellerAuth,
+  validate.documentsValidation,
+  validateRequest,
+  ctrl.registerDocuments
+);
+router.post(
+  "/register/payout",
+  sellerAuth,
+  validate.payoutValidation,
+  validateRequest,
+  ctrl.registerPayout
+);
+router.post(
+  "/register/tax",
+  sellerAuth,
+  validate.taxInfoValidation,
+  validateRequest,
+  ctrl.registerTaxInfo
+);
+router.post(
+  "/register/return",
+  sellerAuth,
+  validate.returnPolicyValidation,
+  validateRequest,
+  ctrl.registerReturnPolicy
+);
+router.post(
+  "/register/plan",
+  sellerAuth,
+  validate.planValidation,
+  validateRequest,
+  ctrl.registerPlan
+);
+router.post("/register/submit",   sellerAuth, ctrl.registerSubmit);
+
+router.post("/login", validate.loginValidation, validateRequest, ctrl.login);
+router.get(
+  "/seller/byId",
+    sellerAuth,
+  validateRequest,
+  ctrl.getSellerById
 );
 router.post(
   "/forgot/start",

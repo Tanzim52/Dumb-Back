@@ -39,6 +39,8 @@ router.post(
 );
 router.post("/login", validate.loginValidation, validateRequest, ctrl.login);
 
+
+
 // Protected routes
 
 router.get(

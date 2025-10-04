@@ -1,4 +1,5 @@
 const { validationResult } = require("express-validator");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const Seller = require("../models/seller");
@@ -10,7 +11,7 @@ const {
   hashOtp,
 } = require("../utils/generateOtp");
 const Product = require("../models/product"); // ensure Product has seller field
-const Order = require("../models/order"); // used for seller earnings/orders
+const Order = require("../models/Order"); // used for seller earnings/orders
 
 // Helper: sign seller token (role included)
 function signSellerToken(seller) {
@@ -19,112 +20,120 @@ function signSellerToken(seller) {
   });
 }
 
-// -------------------- Register & Verify --------------------
-const registerSeller = async (req, res, next) => {
+// ---------------------- REGISTER FLOW ----------------------
+
+// Step 1: Start registration (Send OTP only)
+const registerStart = async (req, res, next) => {
   try {
-    // validation handled by validateRequest
-    const { email, phone } = req.body;
+    const { type, plan, sellerInfo } = req.body;
 
-    // prevent duplicate
-    const exists = await Seller.findOne({ $or: [{ email }, { phone }] });
-    if (exists)
-      return res
-        .status(409)
-        .json({ success: false, message: "Email or phone already registered" });
+    // If a verified seller already exists, block
+    const existingVerified = await Seller.findOne({
+      "sellerInfo.email": sellerInfo.email,
+      emailVerified: true,
+    });
+    if (existingVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered and verified",
+      });
+    }
 
-    const payload = { ...req.body, emailVerified: false, status: "pending" };
-    const seller = await Seller.create(payload);
+    // Invalidate old OTPs for same email
+    await Otp.updateMany(
+      { email: sellerInfo.email, purpose: "seller_register_email", used: false },
+      { $set: { used: true } }
+    );
 
-    // create OTP for email verification
+    // Generate OTP
     const code = generateNumericOtp(6);
     const codeHash = hashOtp(code);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await Otp.updateMany(
-      { email, purpose: "seller_register_email", used: false },
-      { $set: { used: true } }
-    );
+    // Store payload in OTP (not in Seller DB yet)
     await Otp.create({
-      email,
+      email: sellerInfo.email,
       purpose: "seller_register_email",
       codeHash,
       expiresAt,
-      payload: { sellerId: seller._id },
+      payload: { type, plan, sellerInfo },
     });
 
-    // send email (non-blocking)
-    try {
-      await transporter.sendMail({
-        from: process.env.FROM_EMAIL,
-        to: email,
-        subject: "Verify your seller account",
-        html: otpEmailHtml({
-          fullName: seller.ownerName || seller.businessName,
-          code,
-        }),
-      });
-    } catch (e) {
-      /* ignore but log if needed */
-    }
+    // Send OTP to email
+    await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: sellerInfo.email,
+      subject: "Verify your Byndio Seller Account",
+      html: otpEmailHtml({ code }),
+    });
 
-    res.status(201).json({
+    return res.status(200).json({
       success: true,
-      message:
-        "Seller created. Verification OTP sent to email. Admin approval required after verification.",
-      data: { sellerId: seller._id },
+      message: "OTP sent to email. Expires in 10 minutes.",
     });
   } catch (err) {
     next(err);
   }
 };
 
+
+// Step 2: Verify OTP and save seller
 const verifySellerEmail = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
+
     const record = await Otp.findOne({
       email,
       purpose: "seller_register_email",
       used: false,
       expiresAt: { $gt: new Date() },
     }).sort({ createdAt: -1 });
-    if (!record)
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP expired or not found" });
-    if (record.attempts >= 5)
-      return res
-        .status(429)
-        .json({ success: false, message: "Too many attempts" });
 
+    if (!record) {
+      return res.status(400).json({ success: false, message: "OTP expired or not found" });
+    }
+
+    // Check OTP
     if (hashOtp(otp) !== record.codeHash) {
-      record.attempts += 1;
-      await record.save();
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
+    // Mark OTP used
     record.used = true;
     await record.save();
 
-    const sellerId = record.payload?.sellerId;
-    if (!sellerId)
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing payload" });
+    const payload = record.payload;
+    if (!payload || !payload.sellerInfo?.email) {
+      return res.status(400).json({ success: false, message: "Registration payload missing" });
+    }
 
-    const seller = await Seller.findByIdAndUpdate(
-      sellerId,
-      { emailVerified: true },
-      { new: true }
-    ).select("-password");
-    if (!seller)
-      return res
-        .status(404)
-        .json({ success: false, message: "Seller not found" });
+    // Double-check seller not created meanwhile
+    const already = await Seller.findOne({
+      "sellerInfo.email": payload.sellerInfo.email,
+      emailVerified: true,
+    });
+    if (already) {
+      return res.status(400).json({ success: false, message: "Email already registered" });
+    }
+
+    // Create seller in DB
+    const seller = await Seller.create({
+      type: payload.type || "individual",
+      plan: payload.plan || null,
+      sellerInfo: payload.sellerInfo,
+      onboardingStep: "email_verified",
+      emailVerified: true,
+      status: "pending",
+    });
+
+    // Remove sensitive fields
+    seller.sellerInfo.password = undefined;
 
     const token = signSellerToken(seller);
-    res.json({
+
+    return res.status(200).json({
       success: true,
-      message: "Email verified",
+      message: "Email verified & seller registered",
       data: { seller, token },
     });
   } catch (err) {
@@ -132,40 +141,287 @@ const verifySellerEmail = async (req, res, next) => {
   }
 };
 
-// -------------------- Login --------------------
-const loginSeller = async (req, res, next) => {
+// Step 3 (Alternative): Save Additional Info
+const registerAdditionalInfo = async (req, res, next) => {
+  try {
+    // console.log("req.user:", req.user); // Add this first
+    // console.log("req.user._id:", req.user?._id);
+    const { additionalInfo } = req.body;
+  
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        "additionalInfo.fullName": additionalInfo.fullName,
+        "additionalInfo.businessName": additionalInfo.businessName,
+        "additionalInfo.businessType": additionalInfo.businessType,
+        "additionalInfo.storeName": additionalInfo.storeName,
+        "additionalInfo.country": additionalInfo.country,
+        "additionalInfo.currency": additionalInfo.currency,
+        "additionalInfo.pickupStreet": additionalInfo.pickupStreet,
+        "additionalInfo.pickupArea": additionalInfo.pickupArea,
+        "additionalInfo.pickupCity": additionalInfo.pickupCity,
+        "additionalInfo.pickupState": additionalInfo.pickupState,
+        "additionalInfo.pinCode": additionalInfo.pinCode,
+        onboardingStep: "additional_info_added",
+      },
+      { new: true }
+    );
+
+    if (!seller) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Seller not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Additional info saved",
+      data: seller,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Step 4: Business details
+const registerBusiness = async (req, res, next) => {
+  try {
+    // console.log("req.user:", req.user);
+    // console.log("req.user._id:", req.user?._id);
+
+    const { businessInfo } = req.body;
+
+    // Update seller with only businessInfo
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        businessInfo: {
+          businessType: businessInfo.businessType,
+          businessWebsite: businessInfo.businessWebsite,
+          primaryCategory: businessInfo.primaryCategory,
+          registrationNumber: businessInfo.registrationNumber,
+          taxId: businessInfo.taxId,
+          businessDescription: businessInfo.businessDescription,
+        },
+        onboardingStep: "business_added",
+      },
+      { new: true }
+    );
+
+    if (!seller) {
+      return res.status(404).json({ success: false, message: "Seller not found" });
+    }
+
+    res.json({ success: true, message: "Business info saved", data: seller });
+  } catch (err) {
+    console.error(err);
+    next(err);
+  }
+};
+
+// Step 5: Documents (KYC)
+const registerDocuments = async (req, res, next) => {
+  try {
+    const { identityInfo} = req.body;
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        identityInfo: {
+          idType: identityInfo.idType,
+          governmentIdUrl: identityInfo.governmentIdUrl,
+          selfieUrl: identityInfo.selfieUrl,
+        },
+        onboardingStep: "identityInfo_uploaded",
+      },
+      { new: true }
+    );
+    res.json({ success: true, message: "Documents uploaded", data: seller });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Step 6: Payout
+const registerPayout = async (req, res, next) => {
+    // console.log("req.user:", req.user);
+    // console.log("req.user._id:", req.user?._id);
+
+  try {
+    const { payoutInfo} = req.body;
+    // Update only the payout section of the seller
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        payoutInfo: {
+          payoutMethod: payoutInfo.payoutMethod,
+          accountHolderName: payoutInfo.accountHolderName,
+          accountNumber: payoutInfo.accountNumber,
+          bankName: payoutInfo.bankName,
+          routingNumber: payoutInfo.routingNumber || "",
+        },
+        onboardingStep: "payout_added",
+      },
+      { new: true }
+    );
+
+    res.json({ success: true, message: "Payout info saved", data: seller});
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Step 7: Tax Info
+const registerTaxInfo = async (req, res, next) => {
+  try {
+    const { taxInfo } = req.body;
+  console.log(taxInfo)
+    // Update only the tax section of the seller
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        taxInfo: {
+          taxFormType: taxInfo.taxFormType,
+          taxDocumentUrl: taxInfo.taxDocumentUrl,
+        },
+        onboardingStep: "tax_info_added",
+      },
+      { new: true }
+    );
+
+    res.json({ success: true, message: "Tax info saved", data: seller });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+// Step 8: Return Policy
+const registerReturnPolicy = async (req, res, next) => {
+  try {
+    const { returnPolicy } = req.body;
+
+    // Update only the return policy section of the seller
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        returnPolicy: {
+          returnPolicy: returnPolicy.returnPolicy,
+          handlingTime: returnPolicy.handlingTime,
+          logisticsMethod: returnPolicy.logisticsMethod,
+          shippingRegions: returnPolicy.shippingRegions,
+        },
+        onboardingStep: "return_policy_added",
+      },
+      { new: true }
+    );
+
+    res.json({ success: true, message: "Return policy saved", data: seller });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+// Step 9: Plan
+const registerPlan = async (req, res, next) => {
+  try {
+    const { plan } = req.body;
+    const start = new Date();
+    let end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      {
+        subscriptionPlan: plan.id,
+        subscriptionStart: start,
+        subscriptionEnd: end,
+        onboardingStep: "plan_chosen",
+      },
+      { new: true }
+    );
+    res.json({ success: true, message: "Plan chosen", data: seller });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Step 10: Final submit
+const registerSubmit = async (req, res, next) => {
+  try {
+    const seller = await Seller.findByIdAndUpdate(
+      req.user._id,
+      { onboardingStep: "completed", status: "pending" },
+      { new: true }
+    );
+    res.json({
+      success: true,
+      message: "Registration completed, waiting for admin approval",
+      data: seller,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// seller get
+const getSellerById = async (req, res, next) => {
+
+  try {
+    // req.user is populated by authenticateSeller middleware
+    const seller = await Seller.findById(req.user._id);
+    console.log(seller)
+    if (!seller) {
+      return res.status(404).json({ success: false, message: "Seller not found" });
+    }
+    res.json({ success: true, message: "Seller fetched successfully", data: seller });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+const login = async (req, res, next) => {
+  console.log(req.body); 
   try {
     const { email, password } = req.body;
-    const seller = await Seller.findOne({ email }).select("+password");
-    if (!seller)
+    // Find seller by nested email
+    const u = await Seller.findOne({ "sellerInfo.email": email });
+    if (!u)
       return res
         .status(400)
         .json({ success: false, message: "Invalid credentials" });
 
-    const ok = await seller.matchPassword(password);
+    // Compare password (stored in sellerInfo.password)
+    const ok = await bcrypt.compare(password, u.sellerInfo.password);
     if (!ok)
       return res
         .status(400)
         .json({ success: false, message: "Invalid credentials" });
 
-    if (!seller.emailVerified)
+    // Check if email verified
+    if (!u.emailVerified) {
       return res
         .status(403)
-        .json({ success: false, message: "Please verify your email" });
+        .json({ success: false, message: "Please verify your email first" });
+    }
 
-    if (seller.status !== "approved")
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: `Account not approved (status: ${seller.status})`,
-        });
+    // Generate JWT token
+    const token = jwt.sign({ id: u._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
-    const token = signSellerToken(seller);
-    const { password: _, ...safe } = seller.toObject();
-    res.json({ success: true, data: { seller: safe, token } });
-  } catch (err) {
-    next(err);
+    // Return seller data excluding password
+    const sellerSafe = u.toObject();
+    delete sellerSafe.sellerInfo.password;
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      data: { seller: sellerSafe, token },
+    });
+  } catch (e) {
+    next(e);
   }
 };
 
@@ -709,9 +965,7 @@ const earningsSummary = async (req, res, next) => {
 };
 
 module.exports = {
-  registerSeller,
   verifySellerEmail,
-  loginSeller,
   forgotPasswordStart,
   forgotPasswordVerify,
   getMe,
@@ -730,4 +984,16 @@ module.exports = {
   listSellerProducts,
   listSellerOrders,
   earningsSummary,
+  registerStart,
+  verifySellerEmail,
+  registerAdditionalInfo,
+  registerBusiness,
+  registerDocuments,
+  registerPayout,
+  registerTaxInfo,
+  registerReturnPolicy,
+  registerPlan,
+  registerSubmit,
+  getSellerById,
+  login,
 };

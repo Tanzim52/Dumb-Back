@@ -20,9 +20,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "https://byndio.netlify.app",
   "https://byndio2.netlify.app",
-   "http://localhost:5000",
-   "https://byndio3.netlify.app",
-   "https://byndio4.netlify.app"
+   "http://localhost:5000"
 ];
 
 app.use(

@@ -3,36 +3,46 @@ const Seller = require("../models/seller");
 
 /**
  * Seller authentication middleware.
- * Expects Authorization: Bearer <token>
- * Token payload: { id: sellerId, role: 'seller' } (we sign like that in login)
- * Attaches req.seller
+ * - Expects: Authorization: Bearer <token>
+ * - Token payload: { id: sellerId, role: 'seller' }
+ * - Attaches req.seller if valid
  */
 const sellerAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization || "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return res
-        .status(401)
-        .json({ success: false, message: "No token provided" });
-    }
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded || !decoded.id)
-      return res.status(401).json({ success: false, message: "Invalid token" });
+    console.log(`Auth middleware running for route: ${req.originalUrl}`);
 
-    const seller = await Seller.findById(decoded.id).select("-password");
-    if (!seller)
-      return res
-        .status(401)
-        .json({ success: false, message: "Seller not found" });
-    if (!seller.isActive)
-      return res
-        .status(403)
-        .json({ success: false, message: "Seller deactivated" });
-    req.seller = seller;
+
+    const token = req.headers.authorization?.split(" ")[1]; // Bearer <token>
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "No token provided",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Decoded token:", decoded);
+
+    const seller = await Seller.findById(decoded.id || decoded.sellerId);
+
+    if (!seller) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token - seller not found",
+      });
+    }
+
+    req.user = seller;
+    console.log("req.user set to:", seller._id);
+
     next();
-  } catch (err) {
-    return res.status(401).json({ success: false, message: "Not authorized" });
+  } catch (error) {
+    console.log("Auth error:", error);
+    return res.status(401).json({
+      success: false,
+      message: "Invalid token",
+    });
   }
 };
 
